@@ -8,7 +8,7 @@ import io
 # Estilo de página
 st.set_page_config(page_title="Conversor a MED/H", layout="centered")
 
-# Fondo negro con tonos rojos y naranjas
+# Fondo oscuro con detalles rojos/naranjas
 st.markdown("""
     <style>
         body {
@@ -41,25 +41,32 @@ st.markdown("""
 st.markdown('<div class="title">CONVERSOR A MED/H</div>', unsafe_allow_html=True)
 
 # Subida de archivo
-uploaded_file = st.file_uploader("📤 Suba su archivo CSV con datos de UV Erítémico (W/m²)", type=["csv"])
+uploaded_file = st.file_uploader("📤 Suba su archivo CSV con columnas 'Date', 'Time' y UV", type=["csv"])
 
 if uploaded_file:
+    # Leer desde fila 8 (skiprows=7)
     df = pd.read_csv(uploaded_file, skiprows=7)
 
-    # Selección manual de columnas
-    st.subheader("🧩 Selección de columnas")
-    col_fecha = st.selectbox("Selecciona la columna de FECHA/HORA", df.columns)
+    # Verificar que existan las columnas necesarias
+    if "Date" not in df.columns or "Time" not in df.columns:
+        st.error("⚠️ El archivo debe contener columnas llamadas 'Date' y 'Time'.")
+        st.stop()
+
+    # Combinar columnas Date y Time en una sola de tipo datetime
+    df["fecha"] = pd.to_datetime(df["Date"] + " " + df["Time"], format="%d/%m/%Y %H:%M:%S", errors="coerce")
+    df = df.dropna(subset=["fecha"])
+
+    # Selección manual de la columna de UV
+    st.subheader("🧩 Selección de columna UV")
     col_uv = st.selectbox("Selecciona la columna de UV ERITÉMICO (W/m²)", df.columns)
+    df = df.dropna(subset=[col_uv])
+    df = df.rename(columns={col_uv: "uv"})
 
-    # Procesamiento
-    df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce', dayfirst=True)
-    df = df.dropna(subset=[col_fecha, col_uv])
-    df = df.rename(columns={col_uv: 'uv', col_fecha: 'fecha'})
-    df['fecha'] = df['fecha'].dt.tz_localize(None)
-
-    if not pd.api.types.is_numeric_dtype(df['uv']):
+    if not pd.api.types.is_numeric_dtype(df["uv"]):
         st.error("⚠️ La columna seleccionada como UV ERITÉMICO no contiene valores numéricos.")
         st.stop()
+
+    df["fecha"] = df["fecha"].dt.tz_localize(None)
 
     # Selección de tipo de piel
     st.subheader("👤 Seleccione su tipo de piel")
@@ -136,6 +143,4 @@ if uploaded_file:
         st.info(f"Mostrando datos desde **{fecha_inicio.strftime('%d/%m/%Y %H:%M')}** hasta **{fecha_fin.strftime('%d/%m/%Y %H:%M')}**")
     else:
         st.info(f"Mostrando **todos los datos** del archivo.")
-
-
 
