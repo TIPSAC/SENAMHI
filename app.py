@@ -11,7 +11,7 @@ from matplotlib.colors import LinearSegmentedColormap
 import io
 
 # Configuración de página
-st.set_page_config(page_title="Conversor a MED/H", layout="centered")
+st.set_page_config(page_title="Conversor a MED/H", layout="centered", color="black")
 
 # Estilo personalizado con tonos rojo/naranja
 st.markdown("""
