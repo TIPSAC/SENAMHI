@@ -6,7 +6,7 @@ from datetime import datetime, time
 import io
 
 # Estilo de página
-st.set_page_config(page_title="Conversor a MEGAAAAAAAAAAAD/H", layout="centered")
+st.set_page_config(page_title="Conversor a MED/H", layout="centered")
 
 # Fondo negro con tonos rojos y naranjas
 st.markdown("""
@@ -38,7 +38,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="title">CONVERSOR A MED/H</div>', unsafe_allow_html=True)
+st.markdown('<div class="title">CONVERSOR A dsadasdsadaMED/H</div>', unsafe_allow_html=True)
 
 # Subida de archivo
 uploaded_file = st.file_uploader("📤 Suba su archivo Excel con datos de UV Erítémico (W/m²)", type=["xlsx"])
