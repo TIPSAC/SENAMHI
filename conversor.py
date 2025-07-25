@@ -41,10 +41,10 @@ st.markdown("""
 st.markdown('<div class="title">CONVERSOR A MED/H</div>', unsafe_allow_html=True)
 
 # Subida de archivo
-uploaded_file = st.file_uploader("📤 Suba su archivo Excel con datos de UV Erítémico (W/m²)", type=["xlsx"])
+uploaded_file = st.file_uploader("📤 Suba su archivo CSV con datos de UV Erítémico (W/m²)", type=["csv"])
 
 if uploaded_file:
-    df = pd.read_excel(uploaded_file)
+    df = pd.read_csv(uploaded_file, skiprows=7)
 
     # Selección manual de columnas
     st.subheader("🧩 Selección de columnas")
@@ -56,6 +56,10 @@ if uploaded_file:
     df = df.dropna(subset=[col_fecha, col_uv])
     df = df.rename(columns={col_uv: 'uv', col_fecha: 'fecha'})
     df['fecha'] = df['fecha'].dt.tz_localize(None)
+
+    if not pd.api.types.is_numeric_dtype(df['uv']):
+        st.error("⚠️ La columna seleccionada como UV ERITÉMICO no contiene valores numéricos.")
+        st.stop()
 
     # Selección de tipo de piel
     st.subheader("👤 Seleccione su tipo de piel")
@@ -106,6 +110,7 @@ if uploaded_file:
     ax.grid(True, linestyle='--', alpha=0.5)
     ax.tick_params(colors='white')
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m %H:%M'))
+    fig.autofmt_xdate()
 
     fig.patch.set_facecolor('black')
     ax.set_facecolor('black')
@@ -131,5 +136,6 @@ if uploaded_file:
         st.info(f"Mostrando datos desde **{fecha_inicio.strftime('%d/%m/%Y %H:%M')}** hasta **{fecha_fin.strftime('%d/%m/%Y %H:%M')}**")
     else:
         st.info(f"Mostrando **todos los datos** del archivo.")
+
 
 
