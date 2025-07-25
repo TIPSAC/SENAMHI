@@ -38,7 +38,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="title">CONVERSOR A dsadasdsadaMED/H</div>', unsafe_allow_html=True)
+st.markdown('<div class="title">CONVERSOR A MED/H</div>', unsafe_allow_html=True)
 
 # Subida de archivo
 uploaded_file = st.file_uploader("📤 Suba su archivo Excel con datos de UV Erítémico (W/m²)", type=["xlsx"])
