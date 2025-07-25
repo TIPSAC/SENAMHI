@@ -2,135 +2,105 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from datetime import datetime, time
 import io
+from datetime import datetime
 
-# Estilo de página
-st.set_page_config(page_title="Conversor a MED/H", layout="centered")
+# Configuración visual general
+st.set_page_config(page_title="CONVERSOR A MED/H", layout="wide")
 
-# Fondo negro con tonos rojos y naranjas
 st.markdown("""
     <style>
-        body {
-            background-color: black;
-            color: white;
-        }
-        .title {
-            color: black;
-            background-color: #FF4500;
-            padding: 1rem;
-            border-radius: 10px;
-            text-align: center;
-            font-size: 2rem;
-            font-weight: bold;
-        }
-        .stRadio > div {
-            color: white !important;
-        }
-        .stButton button {
-            background-color: #FF6347;
-            color: white;
-        }
-        .stDownloadButton button {
-            background-color: #FF6347;
-            color: white;
-        }
+    body { background-color: black; color: white; }
+    .stApp { background-color: black; }
+    h1 {
+        color: black;
+        background-color: orange;
+        padding: 10px;
+        border-radius: 10px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="title">CONVERSOR A MED/H</div>', unsafe_allow_html=True)
+st.markdown("<h1>CONVERSOR A MED/H</h1>", unsafe_allow_html=True)
 
-# Subida de archivo
-uploaded_file = st.file_uploader("📤 Suba su archivo Excel con datos de UV Erítémico (W/m²)", type=["xlsx"])
+# Instrucción de carga
+st.markdown("Sube un archivo Excel que contenga una columna con la fecha y otra con datos de **UV eritémica ponderada (W/m²)**.")
+
+# Carga de archivo
+uploaded_file = st.file_uploader("Subir archivo Excel", type=["xlsx"])
+
+# Diccionario de MED por tipo de piel
+piel_med = {
+    "Tipo I (muy clara)": 200,
+    "Tipo II (clara)": 250,
+    "Tipo III (intermedia)": 300,
+    "Tipo IV (morena)": 450,
+    "Tipo V (oscura)": 600,
+    "Tipo VI (muy oscura)": 1000,
+}
+
+# Selección de tipo de piel
+tipo_piel = st.selectbox("Selecciona tu tipo de piel:", list(piel_med.keys()))
+valor_med = piel_med[tipo_piel]
 
 if uploaded_file:
-    df = pd.read_excel(uploaded_file)
+    try:
+        df = pd.read_excel(uploaded_file)
 
-    # Detectar columna de fecha y columna UV
-    col_uv = next((col for col in df.columns if 'uv' in col.lower()), None)
-    col_fecha = next((col for col in df.columns if any(p in col.lower() for p in ['fecha', 'date', 'time'])), None)
+        # Detectar columnas automáticamente
+        columnas = df.columns.str.lower()
+        fecha_col = [col for col in columnas if "fecha" in col or "time" in col]
+        uv_col = [col for col in columnas if "uv" in col]
 
-    if col_uv is None or col_fecha is None:
-        st.error("❌ No se encontraron columnas adecuadas de UV o de fecha.")
-        st.stop()
+        if fecha_col and uv_col:
+            df['fecha'] = pd.to_datetime(df[fecha_col[0]])
+            df['uv'] = df[uv_col[0]]
+        else:
+            st.error("No se encontraron columnas adecuadas para fecha y UV.")
+            st.stop()
 
-    df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce', dayfirst=True)
-    df = df.dropna(subset=[col_fecha, col_uv])
-    df = df.rename(columns={col_uv: 'uv', col_fecha: 'fecha'})
-    df['fecha'] = df['fecha'].dt.tz_localize(None)
+        # Ordenar por fecha
+        df = df.sort_values("fecha")
 
-    # Selección de tipo de piel
-    st.subheader("👤 Seleccione su tipo de piel")
-    tipos_piel = {
-        "Tipo I (muy clara)": 200,
-        "Tipo II (clara)": 250,
-        "Tipo III (media)": 300,
-        "Tipo IV (oscura clara)": 450,
-        "Tipo V (oscura)": 600,
-        "Tipo VI (muy oscura)": 1000,
-    }
-    tipo = st.selectbox("Tipo de piel", list(tipos_piel.keys()))
-    med_por_joule = tipos_piel[tipo]
+        # Calcular diferencia de tiempo entre filas
+        df['delta_s'] = df['fecha'].diff().dt.total_seconds()
+        df['delta_s'].fillna(method='bfill', inplace=True)
 
-    # Cálculo de MED/h
-    df["MED/h"] = df["uv"] * 3600 / med_por_joule
+        # Calcular MED correspondiente: MED = UV_erythemal * Δt / MED_skin
+        df['med_h'] = df['uv'] * df['delta_s'] / valor_med
 
-    # Rango de fechas
-    usar_rango = st.radio("¿Deseas ingresar un rango de fechas?", ("No", "Sí"))
-
-    if usar_rango == "Sí":
+        # Selector de rango de fecha opcional
         fecha_min = df['fecha'].min()
         fecha_max = df['fecha'].max()
+        fecha_ini, fecha_fin = st.date_input("Selecciona el rango de fechas:", [fecha_min, fecha_max])
 
-        st.markdown("### Selecciona el rango de fechas")
-        fecha_inicio_fecha = st.date_input("📅 Fecha de inicio", value=fecha_min.date(), min_value=fecha_min.date(), max_value=fecha_max.date())
-        fecha_inicio_hora = st.time_input("⏰ Hora de inicio", value=fecha_min.time())
+        mask = (df['fecha'] >= pd.to_datetime(fecha_ini)) & (df['fecha'] <= pd.to_datetime(fecha_fin))
+        df_filtrado = df.loc[mask]
 
-        fecha_fin_fecha = st.date_input("📅 Fecha de fin", value=fecha_max.date(), min_value=fecha_min.date(), max_value=fecha_max.date())
-        fecha_fin_hora = st.time_input("⏰ Hora de fin", value=fecha_max.time())
+        if df_filtrado.empty:
+            st.warning("No hay datos en el rango seleccionado.")
+            st.stop()
 
-        fecha_inicio = datetime.combine(fecha_inicio_fecha, fecha_inicio_hora)
-        fecha_fin = datetime.combine(fecha_fin_fecha, fecha_fin_hora)
+        # Gráfico
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.plot(df_filtrado['fecha'], df_filtrado['med_h'], color='orange', linewidth=1)
+        ax.set_facecolor("black")
+        fig.patch.set_facecolor("black")
+        ax.set_title("Conversión de UV a MED/h", color='white')
+        ax.set_xlabel("Fecha y hora", color='white')
+        ax.set_ylabel("MED (cada intervalo)", color='white')
+        ax.tick_params(colors='white')
+        ax.grid(True, linestyle="--", alpha=0.3)
+        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+        fig.autofmt_xdate()
+        st.pyplot(fig)
 
-        df = df[(df['fecha'] >= fecha_inicio) & (df['fecha'] <= fecha_fin)]
+        # Exportar Excel
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name="MED_Resultados")
+        st.download_button("📥 Descargar resultados en Excel", buffer.getvalue(), file_name="med_resultados.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-    if df.empty:
-        st.warning("⚠️ No hay datos en el rango seleccionado.")
-        st.stop()
-
-    # Mostrar gráfico
-    st.subheader("📈 Evolución temporal de MED/h")
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(df['fecha'], df['MED/h'], color='orange', linewidth=2)
-    ax.set_title("Conversión de UV a MED/h", fontsize=14, color='white')
-    ax.set_xlabel("Fecha y hora", color='white')
-    ax.set_ylabel("MED/h", color='white')
-    ax.grid(True, linestyle='--', alpha=0.5)
-    ax.tick_params(colors='white')
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m %H:%M'))
-
-    fig.patch.set_facecolor('black')
-    ax.set_facecolor('black')
-
-    st.pyplot(fig)
-
-    # Descargar Excel con resultados
-    st.subheader("📥 Descargar resultados")
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='MED por hora')
-
-    buffer.seek(0)
-    st.download_button(
-        label="Descargar archivo Excel con MED/h",
-        data=buffer,
-        file_name="med_por_hora.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-    # Mostrar info del rango
-    if usar_rango == "Sí":
-        st.info(f"Mostrando datos desde **{fecha_inicio.strftime('%d/%m/%Y %H:%M')}** hasta **{fecha_fin.strftime('%d/%m/%Y %H:%M')}**")
-    else:
-        st.info(f"Mostrando **todos los datos** del archivo.")
+    except Exception as e:
+        st.error(f"Error al procesar el archivo: {e}")
 
