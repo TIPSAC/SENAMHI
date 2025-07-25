@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from datetime import datetime, time
+from datetime import datetime
 import io
 
 # Estilo de página
@@ -44,7 +44,6 @@ st.markdown('<div class="title">CONVERSOR A MED/H</div>', unsafe_allow_html=True
 uploaded_file = st.file_uploader("📤 Suba su archivo CSV con columnas 'Date', 'Time' y UV", type=["csv"])
 
 if uploaded_file:
-    # Leer desde fila 8 (skiprows=7)
     try:
         df = pd.read_csv(uploaded_file, skiprows=7)
     except Exception as e:
@@ -56,15 +55,27 @@ if uploaded_file:
         st.error("⚠️ El archivo debe contener columnas llamadas exactamente 'Date' y 'Time'.")
         st.stop()
 
-    # Combinar Date + Time en una columna datetime
-    df["fecha"] = pd.to_datetime(df["Date"] + " " + df["Time"], format="%d/%m/%Y %H:%M:%S", errors="coerce")
+    # Normalizar columna Time (de "00:36.3" a "00:00:36.3")
+    def normalizar_hora(hora_str):
+        try:
+            partes = hora_str.split(":")
+            if len(partes) == 2:
+                return f"00:{partes[0].zfill(2)}:{partes[1]}"
+            return hora_str
+        except:
+            return None
+
+    df["Time"] = df["Time"].astype(str).apply(normalizar_hora)
+
+    # Crear columna datetime
+    df["fecha"] = pd.to_datetime(df["Date"] + " " + df["Time"], format="%d/%m/%Y %H:%M:%S.%f", errors="coerce")
     num_filas_invalidas = df["fecha"].isna().sum()
 
     if num_filas_invalidas > 0:
-        st.warning(f"⚠️ {num_filas_invalidas} filas tienen problemas de formato en las columnas 'Date' o 'Time' y fueron descartadas.")
+        st.warning(f"⚠️ {num_filas_invalidas} filas tienen formato inválido en 'Date' o 'Time' y fueron descartadas.")
         df = df.dropna(subset=["fecha"])
 
-    # Selección manual de la columna UV
+    # Selección de columna UV
     st.subheader("🧩 Selección de columna UV")
     col_uv = st.selectbox("Selecciona la columna de UV ERITÉMICO (W/m²)", df.columns)
 
@@ -77,7 +88,7 @@ if uploaded_file:
 
     df["fecha"] = df["fecha"].dt.tz_localize(None)
 
-    # Selección de tipo de piel
+    # Tipo de piel
     st.subheader("👤 Seleccione su tipo de piel")
     tipos_piel = {
         "Tipo I (muy clara)": 200,
@@ -90,7 +101,7 @@ if uploaded_file:
     tipo = st.selectbox("Tipo de piel", list(tipos_piel.keys()))
     med_por_joule = tipos_piel[tipo]
 
-    # Cálculo de MED/h
+    # Calcular MED/h
     df["MED/h"] = df["uv"] * 3600 / med_por_joule
 
     # Rango de fechas
@@ -120,26 +131,26 @@ if uploaded_file:
         st.warning("⚠️ No hay datos en el rango seleccionado.")
         st.stop()
 
-    # Mostrar gráfico
+    # Gráfico
     st.subheader("📈 Evolución temporal de MED/h")
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(df['fecha'], df['MED/h'], color='orange', linewidth=2)
-    ax.set_title("Conversión de UV a MED/h", fontsize=14, color='white')
-    ax.set_xlabel("Fecha y hora", color='white')
-    ax.set_ylabel("MED/h", color='white')
-    ax.grid(True, linestyle='--', alpha=0.5)
-    ax.tick_params(colors='white')
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m %H:%M'))
+    ax.plot(df["fecha"], df["MED/h"], color="orange", linewidth=2)
+    ax.set_title("Conversión de UV a MED/h", fontsize=14, color="white")
+    ax.set_xlabel("Fecha y hora", color="white")
+    ax.set_ylabel("MED/h", color="white")
+    ax.grid(True, linestyle="--", alpha=0.5)
+    ax.tick_params(colors="white")
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d-%m %H:%M"))
     fig.autofmt_xdate()
-    fig.patch.set_facecolor('black')
-    ax.set_facecolor('black')
+    fig.patch.set_facecolor("black")
+    ax.set_facecolor("black")
     st.pyplot(fig)
 
-    # Descargar Excel con resultados
+    # Descargar resultados
     st.subheader("📥 Descargar resultados")
     buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='MED por hora')
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="MED por hora")
     buffer.seek(0)
     st.download_button(
         label="Descargar archivo Excel con MED/h",
@@ -148,10 +159,9 @@ if uploaded_file:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-    # Mostrar info del rango
+    # Info de rango mostrado
     if usar_rango == "Sí":
         st.info(f"Mostrando datos desde **{fecha_inicio.strftime('%d/%m/%Y %H:%M')}** hasta **{fecha_fin.strftime('%d/%m/%Y %H:%M')}**")
     else:
-        st.info(f"Mostrando **todos los datos** del archivo.")
-
+        st.info("Mostrando **todos los datos** del archivo.")
 
