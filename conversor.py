@@ -17,23 +17,20 @@ if uploaded_file is not None:
 
         st.success("✅ Archivo cargado correctamente.")
 
-        # Mostrar columnas para seleccionar fecha y UV
-        col1, col2 = st.columns(2)
-        with col1:
-            col_fecha = st.selectbox("📅 Selecciona la columna de FECHA", df.columns, index=0)
-        with col2:
-            col_uv = st.selectbox("🌞 Selecciona la columna de UV (W/m²)", df.columns, index=1)
+        # Mostrar columnas para seleccionar UV
+        col_uv = st.selectbox("🌞 Selecciona la columna de UV (W/m²)", df.columns)
 
         # Reemplazar coma decimal si fuera necesario
         df[col_uv] = df[col_uv].astype(str).str.replace(",", ".").astype(float)
 
-        # Combinar columnas Date y Time (asumiendo están en 'Date' y 'Time')
-        if 'Time' in df.columns:
-            df["fecha_str"] = df["Date"].astype(str).str.strip() + " " + df["Time"].astype(str).str.strip()
-        else:
-            df["fecha_str"] = df["Date"].astype(str).str.strip()
+        # Crear columna 'fecha' combinando Date y Time
+        if 'Time' not in df.columns or 'Date' not in df.columns:
+            st.error("❌ Las columnas 'Date' y 'Time' son obligatorias.")
+            st.stop()
 
-        # Parsear fecha con soporte para segundos decimales (00:36.3)
+        df["fecha_str"] = df["Date"].astype(str).str.strip() + " " + df["Time"].astype(str).str.strip()
+
+        # Parsear fecha con soporte para formato como "25/07/2025 00:36.3"
         def parse_datetime_safe(dt_str):
             try:
                 return pd.to_datetime(dt_str, format="%d/%m/%Y %H:%M:%S", errors='coerce')
@@ -48,7 +45,7 @@ if uploaded_file is not None:
         df = df.dropna(subset=["fecha"])
         descartadas = filas_antes - len(df)
         if descartadas > 0:
-            st.warning(f"⚠️ {descartadas} filas tienen formato inválido en 'Date' o 'Time' y fueron descartadas.")
+            st.warning(f"⚠️ {descartadas} filas tenían formato inválido en 'Date' o 'Time' y fueron descartadas.")
 
         # Calcular MED/h
         MED_J_m2 = 210  # Valor estándar para piel tipo II
@@ -86,5 +83,3 @@ if uploaded_file is not None:
 
     except Exception as e:
         st.error(f"❌ Error al procesar el archivo: {e}")
-
-
