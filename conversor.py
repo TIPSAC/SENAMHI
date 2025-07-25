@@ -1,77 +1,32 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from datetime import datetime, time
 import io
 
-# Estilo de página
-st.set_page_config(page_title="Conversor a MED/H", layout="centered")
+# Configuración de página
+st.set_page_config(page_title="Conversor MED/h por tipo de piel", layout="centered")
 
-# Estilo visual
-st.markdown("""
-    <style>
-        body {
-            background-color: black;
-            color: white;
-        }
-        .title {
-            color: black;
-            background-color: #FF4500;
-            padding: 1rem;
-            border-radius: 10px;
-            text-align: center;
-            font-size: 2rem;
-            font-weight: bold;
-        }
-        .stRadio > div {
-            color: white !important;
-        }
-        .stButton button {
-            background-color: #FF6347;
-            color: white;
-        }
-        .stDownloadButton button {
-            background-color: #FF6347;
-            color: white;
-        }
-    </style>
-""", unsafe_allow_html=True)
+# Título
+st.markdown("<h1 style='text-align: center; color: white;'>Conversor a MED/h</h1>", unsafe_allow_html=True)
 
-st.markdown('<div class="title">CONVERSOR A MED/H</div>', unsafe_allow_html=True)
-
-# Subida de archivo
-uploaded_file = st.file_uploader("📤 Suba su archivo CSV con datos de UV Erítémico (W/m²)", type=["csv"])
+# Subida del archivo
+uploaded_file = st.file_uploader("📤 Suba su archivo CSV con irradiancia (W/m²)", type=["csv"])
 
 if uploaded_file:
     try:
-        # Leer CSV omitiendo primeras 7 filas
+        # Leer el CSV, omitiendo las primeras 7 filas
         df = pd.read_csv(uploaded_file, skiprows=7)
 
-        # Verificar columnas necesarias
-        if 'Date' not in df.columns or 'Time' not in df.columns:
-            st.error("❌ El archivo no contiene columnas 'Date' y 'Time'.")
+        # Buscar automáticamente la columna de irradiancia
+        columnas_posibles = [col for col in df.columns if "W" in col and "/" in col]
+        if not columnas_posibles:
+            st.error("No se encontró una columna con irradiancia en W/m².")
             st.stop()
 
-        # Crear columna de fecha unificada
-        df['fecha'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format="%d/%m/%Y %H:%M.%S", errors='coerce')
+        columna_uv = st.selectbox("Selecciona la columna de Irradiancia (W/m²)", columnas_posibles)
+        df = df.rename(columns={columna_uv: "uv"})
 
-        # Limpiar filas inválidas
-        initial_len = len(df)
-        df = df.dropna(subset=['fecha'])
-        dropped = initial_len - len(df)
-        if dropped > 0:
-            st.warning(f"⚠️ {dropped} filas tenían formato inválido en 'Date' o 'Time' y fueron descartadas.")
-
-        # Selección de columna UV
-        columnas_posibles = [col for col in df.columns if "W" in col and "/" in col]
-        col_uv = st.selectbox("Selecciona la columna de UV ERITÉMICO (W/m²)", columnas_posibles)
-
-        df = df.rename(columns={col_uv: "uv"})
-        df['fecha'] = df['fecha'].dt.tz_localize(None)
-
-        # Selección tipo de piel
-        st.subheader("👤 Seleccione su tipo de piel")
+        # Selección múltiple de tipos de piel
+        st.subheader("👤 Seleccione uno o más tipos de piel")
         tipos_piel = {
             "Tipo I (muy clara)": 200,
             "Tipo II (clara)": 250,
@@ -80,68 +35,31 @@ if uploaded_file:
             "Tipo V (oscura)": 600,
             "Tipo VI (muy oscura)": 1000,
         }
-        tipo = st.selectbox("Tipo de piel", list(tipos_piel.keys()))
-        med_por_joule = tipos_piel[tipo]
 
-        # Calcular MED/h
-        df["MED/h"] = df["uv"] * 3600 / med_por_joule
+        seleccionados = st.multiselect("Tipos de piel", list(tipos_piel.keys()))
 
-        # Filtrado por rango
-        usar_rango = st.radio("¿Deseas ingresar un rango de fechas?", ("No", "Sí"))
+        if seleccionados:
+            for tipo in seleccionados:
+                med_por_joule = tipos_piel[tipo]
+                nombre_columna = f"MED/h - {tipo}"
+                df[nombre_columna] = df["uv"] * 3600 / med_por_joule
 
-        if usar_rango == "Sí":
-            fecha_min = df['fecha'].min()
-            fecha_max = df['fecha'].max()
+            # Descargar resultados
+            st.subheader("📥 Descargar archivo con resultados")
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                df.to_excel(writer, index=False, sheet_name="MED/h")
 
-            st.markdown("### Selecciona el rango de fechas")
-            fecha_inicio_fecha = st.date_input("📅 Fecha de inicio", value=fecha_min.date(), min_value=fecha_min.date(), max_value=fecha_max.date())
-            fecha_inicio_hora = st.time_input("⏰ Hora de inicio", value=fecha_min.time())
-
-            fecha_fin_fecha = st.date_input("📅 Fecha de fin", value=fecha_max.date(), min_value=fecha_min.date(), max_value=fecha_max.date())
-            fecha_fin_hora = st.time_input("⏰ Hora de fin", value=fecha_max.time())
-
-            fecha_inicio = datetime.combine(fecha_inicio_fecha, fecha_inicio_hora)
-            fecha_fin = datetime.combine(fecha_fin_fecha, fecha_fin_hora)
-
-            df = df[(df['fecha'] >= fecha_inicio) & (df['fecha'] <= fecha_fin)]
-
-        if df.empty:
-            st.warning("⚠️ No hay datos en el rango seleccionado.")
-            st.stop()
-
-        # Gráfico
-        st.subheader("📈 Evolución temporal de MED/h")
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.plot(df['fecha'], df['MED/h'], color='orange', linewidth=2)
-        ax.set_title("Conversión de UV a MED/h", fontsize=14, color='white')
-        ax.set_xlabel("Fecha y hora", color='white')
-        ax.set_ylabel("MED/h", color='white')
-        ax.grid(True, linestyle='--', alpha=0.5)
-        ax.tick_params(colors='white')
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m %H:%M'))
-
-        fig.patch.set_facecolor('black')
-        ax.set_facecolor('black')
-        st.pyplot(fig)
-
-        # Descargar resultados
-        st.subheader("📥 Descargar resultados")
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='MED por hora')
-
-        buffer.seek(0)
-        st.download_button(
-            label="Descargar archivo Excel con MED/h",
-            data=buffer,
-            file_name="med_por_hora.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-        if usar_rango == "Sí":
-            st.info(f"Mostrando datos desde **{fecha_inicio.strftime('%d/%m/%Y %H:%M')}** hasta **{fecha_fin.strftime('%d/%m/%Y %H:%M')}**")
+            buffer.seek(0)
+            st.download_button(
+                label="📄 Descargar Excel con MED/h",
+                data=buffer,
+                file_name="med_por_tipo_de_piel.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
         else:
-            st.info(f"Mostrando **todos los datos** del archivo.")
+            st.info("Por favor, seleccione al menos un tipo de piel para continuar.")
     except Exception as e:
         st.error(f"Ocurrió un error: {e}")
+
 
