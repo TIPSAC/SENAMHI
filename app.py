@@ -10,9 +10,41 @@ from PIL import Image
 from matplotlib.colors import LinearSegmentedColormap
 import io
 
-st.set_page_config(page_title="Rosa de Viento", layout="centered")
-st.title("🌬️ GENERAR ROSA DE VIENTO")
+# Configuración de página
+st.set_page_config(page_title="Conversor a MED/H", layout="centered")
 
+# Estilo personalizado con tonos rojo/naranja
+st.markdown("""
+    <style>
+    body {
+        background-color: #fff4f0;
+    }
+    .stApp {
+        background-color: #fff4f0;
+    }
+    .css-18e3th9 {
+        background-color: #fff4f0;
+    }
+    h1, h2, h3, h4, h5 {
+        color: #cc3300;
+    }
+    .stButton>button {
+        background-color: #ff7043;
+        color: white;
+        font-weight: bold;
+    }
+    .stDownloadButton>button {
+        background-color: #e64a19;
+        color: white;
+        font-weight: bold;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Título principal
+st.title("☀️ CONVERSOR A MED/H")
+
+# Subida de archivo
 uploaded_file = st.file_uploader("📤 Suba su archivo Excel", type=["xlsx"])
 
 if uploaded_file:
@@ -68,7 +100,6 @@ if uploaded_file:
     logo_img_resized = logo_img.resize((380, 150))
     logo_array = np.asarray(logo_img_resized)
 
-    # Crear colormap personalizado
     colores = ['purple', 'blue', 'green', 'yellow', 'orange', 'red']
     cmap_personalizado = LinearSegmentedColormap.from_list("custom_windrose", colores, N=6)
 
@@ -101,16 +132,13 @@ if uploaded_file:
 
     plt.tight_layout()
 
-    # Mostrar figura en Streamlit
     st.pyplot(fig)
 
-    # Botón para descargar la imagen como PNG
     buffer = io.BytesIO()
     fig.savefig(buffer, format='png', dpi=300, bbox_inches='tight')
     buffer.seek(0)
     st.download_button(label="📥 Descargar Rosa de Viento como PNG", data=buffer, file_name="rosa_de_viento.png", mime="image/png")
 
-    # Mensaje de rango mostrado
     if usar_rango == "Sí":
         st.info(f"Mostrando datos desde **{fecha_inicio.strftime('%d/%m/%Y %H:%M')}** hasta **{fecha_fin.strftime('%d/%m/%Y %H:%M')}**")
     else:
