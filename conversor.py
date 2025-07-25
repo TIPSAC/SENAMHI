@@ -3,8 +3,8 @@ import pandas as pd
 
 st.set_page_config(page_title="Conversor W/m² a MED/h", layout="centered")
 
-st.title("☀️ Conversor de Irradiancia (W/m²) a MED/h")
-st.markdown("Sube un archivo CSV con una columna de Irradiancia en **W/m²** (después de la fila 7).")
+st.title("☀️ Conversor a MED/h")
+st.markdown("Sube un archivo.")
 
 archivo = st.file_uploader("📁 Sube tu archivo CSV", type=["csv"])
 
