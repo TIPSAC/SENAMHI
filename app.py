@@ -46,14 +46,12 @@ uploaded_file = st.file_uploader("📤 Suba su archivo Excel con datos de UV Er�
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
 
-    # Detectar columna de fecha y columna UV
-    col_uv = next((col for col in df.columns if 'uv' in col.lower()), None)
-    col_fecha = next((col for col in df.columns if any(p in col.lower() for p in ['fecha', 'date', 'time'])), None)
+    # Selección manual de columnas
+    st.subheader("🧩 Selección de columnas")
+    col_fecha = st.selectbox("Selecciona la columna de FECHA/HORA", df.columns)
+    col_uv = st.selectbox("Selecciona la columna de UV ERITÉMICO (W/m²)", df.columns)
 
-    if col_uv is None or col_fecha is None:
-        st.error("❌ No se encontraron columnas adecuadas de UV o de fecha.")
-        st.stop()
-
+    # Procesamiento
     df[col_fecha] = pd.to_datetime(df[col_fecha], errors='coerce', dayfirst=True)
     df = df.dropna(subset=[col_fecha, col_uv])
     df = df.rename(columns={col_uv: 'uv', col_fecha: 'fecha'})
@@ -133,4 +131,5 @@ if uploaded_file:
         st.info(f"Mostrando datos desde **{fecha_inicio.strftime('%d/%m/%Y %H:%M')}** hasta **{fecha_fin.strftime('%d/%m/%Y %H:%M')}**")
     else:
         st.info(f"Mostrando **todos los datos** del archivo.")
+
 
