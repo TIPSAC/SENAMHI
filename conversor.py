@@ -45,20 +45,29 @@ uploaded_file = st.file_uploader("📤 Suba su archivo CSV con columnas 'Date', 
 
 if uploaded_file:
     # Leer desde fila 8 (skiprows=7)
-    df = pd.read_csv(uploaded_file, skiprows=7)
-
-    # Verificar que existan las columnas necesarias
-    if "Date" not in df.columns or "Time" not in df.columns:
-        st.error("⚠️ El archivo debe contener columnas llamadas 'Date' y 'Time'.")
+    try:
+        df = pd.read_csv(uploaded_file, skiprows=7)
+    except Exception as e:
+        st.error(f"Error al leer el archivo CSV: {e}")
         st.stop()
 
-    # Combinar columnas Date y Time en una sola de tipo datetime
-    df["fecha"] = pd.to_datetime(df["Date"] + " " + df["Time"], format="%d/%m/%Y %H:%M:%S", errors="coerce")
-    df = df.dropna(subset=["fecha"])
+    # Validar columnas esperadas
+    if "Date" not in df.columns or "Time" not in df.columns:
+        st.error("⚠️ El archivo debe contener columnas llamadas exactamente 'Date' y 'Time'.")
+        st.stop()
 
-    # Selección manual de la columna de UV
+    # Combinar Date + Time en una columna datetime
+    df["fecha"] = pd.to_datetime(df["Date"] + " " + df["Time"], format="%d/%m/%Y %H:%M:%S", errors="coerce")
+    num_filas_invalidas = df["fecha"].isna().sum()
+
+    if num_filas_invalidas > 0:
+        st.warning(f"⚠️ {num_filas_invalidas} filas tienen problemas de formato en las columnas 'Date' o 'Time' y fueron descartadas.")
+        df = df.dropna(subset=["fecha"])
+
+    # Selección manual de la columna UV
     st.subheader("🧩 Selección de columna UV")
     col_uv = st.selectbox("Selecciona la columna de UV ERITÉMICO (W/m²)", df.columns)
+
     df = df.dropna(subset=[col_uv])
     df = df.rename(columns={col_uv: "uv"})
 
@@ -88,8 +97,12 @@ if uploaded_file:
     usar_rango = st.radio("¿Deseas ingresar un rango de fechas?", ("No", "Sí"))
 
     if usar_rango == "Sí":
-        fecha_min = df['fecha'].min()
-        fecha_max = df['fecha'].max()
+        fecha_min = df["fecha"].min()
+        fecha_max = df["fecha"].max()
+
+        if pd.isnull(fecha_min) or pd.isnull(fecha_max):
+            st.error("⚠️ No se encontraron fechas válidas en el archivo.")
+            st.stop()
 
         st.markdown("### Selecciona el rango de fechas")
         fecha_inicio_fecha = st.date_input("📅 Fecha de inicio", value=fecha_min.date(), min_value=fecha_min.date(), max_value=fecha_max.date())
@@ -101,7 +114,7 @@ if uploaded_file:
         fecha_inicio = datetime.combine(fecha_inicio_fecha, fecha_inicio_hora)
         fecha_fin = datetime.combine(fecha_fin_fecha, fecha_fin_hora)
 
-        df = df[(df['fecha'] >= fecha_inicio) & (df['fecha'] <= fecha_fin)]
+        df = df[(df["fecha"] >= fecha_inicio) & (df["fecha"] <= fecha_fin)]
 
     if df.empty:
         st.warning("⚠️ No hay datos en el rango seleccionado.")
@@ -118,10 +131,8 @@ if uploaded_file:
     ax.tick_params(colors='white')
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m %H:%M'))
     fig.autofmt_xdate()
-
     fig.patch.set_facecolor('black')
     ax.set_facecolor('black')
-
     st.pyplot(fig)
 
     # Descargar Excel con resultados
@@ -129,7 +140,6 @@ if uploaded_file:
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='MED por hora')
-
     buffer.seek(0)
     st.download_button(
         label="Descargar archivo Excel con MED/h",
@@ -143,4 +153,5 @@ if uploaded_file:
         st.info(f"Mostrando datos desde **{fecha_inicio.strftime('%d/%m/%Y %H:%M')}** hasta **{fecha_fin.strftime('%d/%m/%Y %H:%M')}**")
     else:
         st.info(f"Mostrando **todos los datos** del archivo.")
+
 
