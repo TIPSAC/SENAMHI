@@ -6,7 +6,7 @@ from datetime import datetime, time
 import io
 
 # Estilo de página
-st.set_page_config(page_title="Conversor a MED/H", layout="centered")
+st.set_page_config(page_title="Conversor a MEGAAAAAAAAAAAD/H", layout="centered")
 
 # Fondo negro con tonos rojos y naranjas
 st.markdown("""
