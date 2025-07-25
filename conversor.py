@@ -48,7 +48,7 @@ if uploaded_file:
             st.subheader("📥 Descargar archivo con resultados")
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-                df.to_excel(writer, index=False, sheet_name="MED/h")
+                df.to_excel(writer, index=False, sheet_name="MED_h")
 
             buffer.seek(0)
             st.download_button(
