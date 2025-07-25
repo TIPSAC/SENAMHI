@@ -11,9 +11,9 @@ from matplotlib.colors import LinearSegmentedColormap
 import io
 
 # Configuración de página
-st.set_page_config(page_title="Conversor a MED/H", layout="centered", color="black")
+st.set_page_config(page_title="Conversor a MED/H", layout="centered")
 
-# Estilo personalizado con tonos rojo/naranja
+# Estilo personalizado: fondo claro, botones en naranja, título en negro
 st.markdown("""
     <style>
     body {
@@ -22,11 +22,8 @@ st.markdown("""
     .stApp {
         background-color: #fff4f0;
     }
-    .css-18e3th9 {
-        background-color: #fff4f0;
-    }
     h1, h2, h3, h4, h5 {
-        color: #cc3300;
+        color: black !important;
     }
     .stButton>button {
         background-color: #ff7043;
@@ -143,3 +140,4 @@ if uploaded_file:
         st.info(f"Mostrando datos desde **{fecha_inicio.strftime('%d/%m/%Y %H:%M')}** hasta **{fecha_fin.strftime('%d/%m/%Y %H:%M')}**")
     else:
         st.info(f"Mostrando **todos los datos** del archivo.")
+
